@@ -31,16 +31,18 @@ fn process_chunk(chunk : Vec<std::path::PathBuf>, sender: Sender<String>, buffer
     let (thread_sender, thread_receiver) = mpsc::sync_channel(1000000);
 
     let handler = thread::spawn(move || {
+        let mut s = String::new();
 
         for dir_entry in chunk {
             let file = File::open(dir_entry).unwrap();
-            for line in io::BufReader::with_capacity(1024 * 1024, file)
-                .lines()
-                .skip(skip)
-            {
+            let mut reader = io::BufReader::with_capacity(1024 * 1024, file);
+            for _ in 0..skip { 
+                reader.read_line(&mut s).unwrap();
+            }
+
+            while reader.read_line(&mut s).unwrap() != 0 {
                 let mut tab_pos = Vec::with_capacity(16);
                 let mut chunks = Vec::with_capacity(fields.len());
-                let s = line.unwrap();
 
                 let mut last = 0;
                 tab_pos.push(0);
@@ -54,6 +56,7 @@ fn process_chunk(chunk : Vec<std::path::PathBuf>, sender: Sender<String>, buffer
                 }
 
                 thread_sender.send(chunks.join("\t")).unwrap();
+                s.truncate(0);
             }
         }
     });
@@ -99,7 +102,7 @@ fn main() {
         let fields = args.fields.to_owned();
         let chunk = chunk.to_owned();
         thread_handles.push(thread::spawn(move || {
-            process_chunk(chunk, sender, buffer_size, fields.to_owned(), args.skip);
+            process_chunk(chunk, sender, buffer_size, fields, args.skip);
         }));
     }
     for handle in thread_handles {
