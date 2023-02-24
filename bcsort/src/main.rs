@@ -1,11 +1,11 @@
 use clap::Parser;
-use std::fs::File;
 use ext_sort::{buffer::LimitedBufferBuilder, ExternalSorter, ExternalSorterBuilder};
-use parse_size::parse_size;
-use std::io::{self, prelude::*};
 use num_cpus;
+use parse_size::parse_size;
+use std::fs::File;
+use std::io::{self, prelude::*};
 use std::path;
-use std::sync::mpsc;
+use std::sync::mpsc::{self, Sender};
 use std::thread;
 
 /// Extract and sort blockchair data
@@ -27,18 +27,19 @@ struct Args {
     skip: usize,
 }
 
-fn main() {
-    let args = Args::parse();
-    let buffer_size = parse_size(args.buffer_size).expect("Wrong format for buffer size") as usize;
-
-    let (sender, receiver) = mpsc::channel();
+fn process_chunk(chunk : Vec<std::path::PathBuf>, sender: Sender<String>, buffer_size: usize, fields: Vec<usize>, skip: usize) {
+    let (thread_sender, thread_receiver) = mpsc::channel();
 
     let handler = thread::spawn(move || {
-        for dir_entry in args.input_dir.read_dir().unwrap() {
-            let file = File::open(dir_entry.unwrap().path()).unwrap();
-            for line in io::BufReader::with_capacity(1024*1024, file).lines().skip(args.skip) {
+
+        for dir_entry in chunk {
+            let file = File::open(dir_entry).unwrap();
+            for line in io::BufReader::with_capacity(1024 * 1024, file)
+                .lines()
+                .skip(skip)
+            {
                 let mut tab_pos = Vec::with_capacity(16);
-                let mut chunks = Vec::with_capacity(args.fields.len());
+                let mut chunks = Vec::with_capacity(fields.len());
                 let s = line.unwrap();
 
                 let mut last = 0;
@@ -47,12 +48,12 @@ fn main() {
                     last += pos + 2;
                     tab_pos.push(last);
                 }
-                
-                for f in &args.fields {
-                    chunks.push(&s[tab_pos[*f]..tab_pos[*f+1] - 1]);
+
+                for f in &fields {
+                    chunks.push(&s[tab_pos[*f]..tab_pos[*f + 1] - 1]);
                 }
 
-                sender.send(chunks.join("\t")).unwrap();
+                thread_sender.send(chunks.join("\t")).unwrap();
             }
         }
     });
@@ -65,7 +66,7 @@ fn main() {
             .build()
             .unwrap();
 
-    let sorted = sorter.sort(receiver.into_iter().map(|x| Ok(x))).unwrap();
+    let sorted = sorter.sort(thread_receiver.into_iter().map(|x| Ok(x))).unwrap();
 
     let ln = &[b'\n'];
     for item in sorted.map(Result::unwrap) {
@@ -74,4 +75,34 @@ fn main() {
     }
     std::io::stdout().flush().unwrap();
     handler.join().unwrap();
+}
+fn main() {
+    let args = Args::parse();
+    let buffer_size = parse_size(args.buffer_size).expect("Wrong format for buffer size") as usize;
+
+    let files = args
+        .input_dir
+        .read_dir()
+        .unwrap()
+        .map(Result::unwrap)
+        .map(|d| d.path())
+        .collect::<Vec<std::path::PathBuf>>();
+
+    let mut thread_handles = vec![];
+
+    let mut receivers: Vec<std::sync::mpsc::Receiver<String>> = vec![];
+
+    for chunk in files.chunks(num_cpus::get()) {
+        let (sender, receiver) = mpsc::channel();
+        receivers.push(receiver);
+        let fields = args.fields.to_owned();
+        let chunk = chunk.to_owned();
+        thread_handles.push(thread::spawn(move || {
+            process_chunk(chunk, sender, buffer_size, fields.to_owned(), args.skip);
+        }));
+    }
+    for handle in thread_handles {
+        handle.join().unwrap();
+    }
+
 }
