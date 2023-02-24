@@ -7,6 +7,7 @@ use std::io::{self, prelude::*};
 use std::path;
 use std::sync::mpsc::{self, Sender};
 use std::thread;
+use bytelines;
 
 /// Extract and sort blockchair data
 #[derive(Parser, Debug)]
@@ -31,22 +32,23 @@ fn process_chunk(chunk : Vec<std::path::PathBuf>, sender: Sender<String>, buffer
     let (thread_sender, thread_receiver) = mpsc::sync_channel(1000000);
 
     let handler = thread::spawn(move || {
-        let mut s = String::new();
-
         for dir_entry in chunk {
             let file = File::open(dir_entry).unwrap();
-            let mut reader = io::BufReader::with_capacity(1024 * 1024, file);
+            let reader = io::BufReader::with_capacity(1024 * 1024, file);
+            let mut byte_reader = bytelines::ByteLines::new(reader);
+
             for _ in 0..skip { 
-                reader.read_line(&mut s).unwrap();
+                byte_reader.next();
             }
 
-            while reader.read_line(&mut s).unwrap() != 0 {
+            while let Some(line) = byte_reader.next() {
                 let mut tab_pos = Vec::with_capacity(16);
                 let mut chunks = Vec::with_capacity(fields.len());
 
+                let s = line.unwrap();
                 let mut last = 0;
                 tab_pos.push(0);
-                while let Some(pos) = s[last + 1..].find('\t') {
+                while let Some(pos) = s[last + 1..].iter().position(|x| *x == b'\t') {
                     last += pos + 2;
                     tab_pos.push(last);
                 }
@@ -55,13 +57,12 @@ fn process_chunk(chunk : Vec<std::path::PathBuf>, sender: Sender<String>, buffer
                     chunks.push(&s[tab_pos[*f]..tab_pos[*f + 1] - 1]);
                 }
 
-                thread_sender.send(chunks.join("\t")).unwrap();
-                s.truncate(0);
+                thread_sender.send(chunks.join(&b'\t')).unwrap();
             }
         }
     });
 
-    let sorter: ExternalSorter<String, io::Error, LimitedBufferBuilder> =
+    let sorter: ExternalSorter<Vec<u8>, io::Error, LimitedBufferBuilder> =
         ExternalSorterBuilder::new()
             .with_tmp_dir(path::Path::new("/tmp"))
             .with_buffer(LimitedBufferBuilder::new(buffer_size, true))
