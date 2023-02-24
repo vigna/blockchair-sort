@@ -57,12 +57,12 @@ fn process_chunk(chunk : Vec<std::path::PathBuf>, sender: Sender<String>, buffer
                     chunks.push(&s[tab_pos[*f]..tab_pos[*f + 1] - 1]);
                 }
 
-                thread_sender.send(chunks.join(&b'\t')).unwrap();
+                thread_sender.send(String::from_utf8(chunks.join(&b'\t')).unwrap()).unwrap();
             }
         }
     });
 
-    let sorter: ExternalSorter<Vec<u8>, io::Error, LimitedBufferBuilder> =
+    let sorter: ExternalSorter<_, io::Error, LimitedBufferBuilder> =
         ExternalSorterBuilder::new()
             .with_tmp_dir(path::Path::new("/tmp"))
             .with_buffer(LimitedBufferBuilder::new(buffer_size, true))
