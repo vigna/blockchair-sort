@@ -10,3 +10,4 @@ ext-sort = "0.1.2"
 bytesize = "1.1.0"
 clap = { version = "4.1.6", features = ["derive"] }
 csv = "1.2"
+parse-size = "1"

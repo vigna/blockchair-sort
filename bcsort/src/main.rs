@@ -1,11 +1,11 @@
-use bytesize::MB;
 use clap::Parser;
 use csv;
 use ext_sort::{buffer::LimitedBufferBuilder, ExternalSorter, ExternalSorterBuilder};
+use parse_size::parse_size;
 use std::io::{self, prelude::*};
 use std::path;
 use std::sync::mpsc;
-use std::{fs, thread};
+use std::thread;
 
 /// Extract and sort blockchair data
 #[derive(Parser, Debug)]
@@ -16,56 +16,51 @@ struct Args {
 
     /// Fields to be extracted
     fields: Vec<usize>,
+
+    /// Size of the memory buffer in gigabytes.
+    #[arg(short, long, default_value = "1GiB")]
+    buffer_size: String,
 }
 
 fn main() {
     let args = Args::parse();
+    let buffer_size = parse_size(args.buffer_size).expect("Wrong format for buffer size") as usize;
 
     let (sender, receiver) = mpsc::channel();
 
     let handler = thread::spawn(move || {
         for dir_entry in args.input_dir.read_dir().unwrap() {
-
-            let mut rdr = csv::ReaderBuilder::new()
+            csv::ReaderBuilder::new()
                 .delimiter(b'\t')
-                .from_path(dir_entry.unwrap().path()).unwrap();
+                .from_path(dir_entry.unwrap().path())
+                .unwrap()
+                .records()
+                .map(|x| x.unwrap())
+                .for_each(|l| {
+                    let mut a = Vec::new();
+                    for f in &args.fields {
+                        a.push(l.get(*f).unwrap());
+                    }
 
-			for record in rdr.records() {
-				sender.send(record).unwrap();
-            }
+                    sender.send(a.join("\t")).unwrap();
+                });
         }
     });
-
-    for r in receiver {
-    	let l = r.unwrap();
-		write!(io::stdout(), "{}", &l.get(args.fields[0]).unwrap());
-    	for f in &args.fields[1..] {
-			write!(io::stdout(), "\t{}", &l.get(*f).unwrap());
-    	}
-    	
-    	writeln!(io::stdout());
-    }
-
-    handler.join().unwrap();
-
-/*    //    env_logger::Builder::new().filter_level(log::LevelFilter::Debug).init();
-
-    let input_reader = io::BufReader::new(fs::File::open("input.txt").unwrap());
-    let mut output_writer = io::BufWriter::new(fs::File::create("output.txt").unwrap());
 
     let sorter: ExternalSorter<String, io::Error, LimitedBufferBuilder> =
         ExternalSorterBuilder::new()
             .with_tmp_dir(path::Path::new("./"))
-            .with_buffer(LimitedBufferBuilder::new(50 * MB as usize, true))
+            .with_buffer(LimitedBufferBuilder::new(buffer_size, true))
             .build()
             .unwrap();
 
-    let sorted = sorter.sort(input_reader.lines()).unwrap();
+    let sorted = sorter.sort(receiver.into_iter().map(|x| Ok(x))).unwrap();
 
+    let ln = &[b'\n'];
     for item in sorted.map(Result::unwrap) {
-        output_writer
-            .write_all(format!("{}\n", item).as_bytes())
-            .unwrap();
+        std::io::stdout().write_all(item.as_bytes()).unwrap();
+        std::io::stdout().write(ln).unwrap();
     }
-    output_writer.flush().unwrap();*/
+    std::io::stdout().flush().unwrap();
+    handler.join().unwrap();
 }
