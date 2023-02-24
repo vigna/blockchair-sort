@@ -11,3 +11,5 @@ bytesize = "1.1.0"
 clap = { version = "4.1.6", features = ["derive"] }
 csv = "1.2"
 parse-size = "1"
+num_cpus = "1"
+

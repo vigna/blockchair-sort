@@ -3,6 +3,7 @@ use csv;
 use ext_sort::{buffer::LimitedBufferBuilder, ExternalSorter, ExternalSorterBuilder};
 use parse_size::parse_size;
 use std::io::{self, prelude::*};
+use num_cpus;
 use std::path;
 use std::sync::mpsc;
 use std::thread;
@@ -51,6 +52,7 @@ fn main() {
         ExternalSorterBuilder::new()
             .with_tmp_dir(path::Path::new("./"))
             .with_buffer(LimitedBufferBuilder::new(buffer_size, true))
+            .with_threads_number(num_cpus::get())
             .build()
             .unwrap();
 
