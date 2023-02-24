@@ -59,7 +59,7 @@ fn main() {
 
     let sorter: ExternalSorter<String, io::Error, LimitedBufferBuilder> =
         ExternalSorterBuilder::new()
-            .with_tmp_dir(path::Path::new("./"))
+            .with_tmp_dir(path::Path::new("/tmp"))
             .with_buffer(LimitedBufferBuilder::new(buffer_size, true))
             .with_threads_number(num_cpus::get())
             .build()
