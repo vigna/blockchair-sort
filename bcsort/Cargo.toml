@@ -13,3 +13,5 @@ csv = "1.2"
 parse-size = "1"
 num_cpus = "1"
 
+[profile.release]
+debug = 1
