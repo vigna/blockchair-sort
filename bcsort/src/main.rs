@@ -1,5 +1,5 @@
 use clap::Parser;
-use csv;
+use std::fs::File;
 use ext_sort::{buffer::LimitedBufferBuilder, ExternalSorter, ExternalSorterBuilder};
 use parse_size::parse_size;
 use std::io::{self, prelude::*};
@@ -21,6 +21,10 @@ struct Args {
     /// Size of the memory buffer in gigabytes.
     #[arg(short, long, default_value = "1GiB")]
     buffer_size: String,
+
+    /// Number of initial lines to skip
+    #[arg(short, long, default_value_t = 1)]
+    skip: usize,
 }
 
 fn main() {
@@ -31,20 +35,25 @@ fn main() {
 
     let handler = thread::spawn(move || {
         for dir_entry in args.input_dir.read_dir().unwrap() {
-            csv::ReaderBuilder::new()
-                .delimiter(b'\t')
-                .from_path(dir_entry.unwrap().path())
-                .unwrap()
-                .records()
-                .map(|x| x.unwrap())
-                .for_each(|l| {
-                    let mut a = Vec::new();
-                    for f in &args.fields {
-                        a.push(l.get(*f).unwrap());
-                    }
+            let file = File::open(dir_entry.unwrap().path()).unwrap();
+            for line in io::BufReader::with_capacity(1024*1024, file).lines().skip(args.skip) {
+                let mut tab_pos = Vec::with_capacity(16);
+                let mut chunks = Vec::with_capacity(args.fields.len());
+                let s = line.unwrap();
 
-                    sender.send(a.join("\t")).unwrap();
-                });
+                let mut last = 0;
+                tab_pos.push(0);
+                while let Some(pos) = s[last + 1..].find('\t') {
+                    last += pos + 2;
+                    tab_pos.push(last);
+                }
+                
+                for f in &args.fields {
+                    chunks.push(&s[tab_pos[*f]..tab_pos[*f+1] - 1]);
+                }
+
+                sender.send(chunks.join("\t")).unwrap();
+            }
         }
     });
 
