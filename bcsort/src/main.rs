@@ -28,7 +28,7 @@ struct Args {
 }
 
 fn process_chunk(chunk : Vec<std::path::PathBuf>, sender: Sender<String>, buffer_size: usize, fields: Vec<usize>, skip: usize) {
-    let (thread_sender, thread_receiver) = mpsc::channel();
+    let (thread_sender, thread_receiver) = mpsc::sync_channel(1000000);
 
     let handler = thread::spawn(move || {
 
@@ -68,12 +68,13 @@ fn process_chunk(chunk : Vec<std::path::PathBuf>, sender: Sender<String>, buffer
 
     let sorted = sorter.sort(thread_receiver.into_iter().map(|x| Ok(x))).unwrap();
 
-    let ln = &[b'\n'];
+/*    let ln = &[b'\n'];
     for item in sorted.map(Result::unwrap) {
         std::io::stdout().write_all(item.as_bytes()).unwrap();
         std::io::stdout().write(ln).unwrap();
     }
-    std::io::stdout().flush().unwrap();
+    std::io::stdout().flush().unwrap();*/
+    sorted.count();
     handler.join().unwrap();
 }
 fn main() {
