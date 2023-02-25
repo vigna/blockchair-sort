@@ -28,7 +28,7 @@ struct Args {
     skip: usize,
 }
 
-fn process_chunk(chunk : Vec<std::path::PathBuf>, sender: Sender<String>, buffer_size: usize, fields: Vec<usize>, skip: usize) {
+fn process_chunk(chunk : Vec<std::path::PathBuf>, sender: Sender<String>, buffer_size: usize, fields: std::sync::Arc<Vec<usize>>, skip: usize) {
     let (thread_sender, thread_receiver) = mpsc::sync_channel(1000000);
 
     let handler = thread::spawn(move || {
@@ -53,7 +53,7 @@ fn process_chunk(chunk : Vec<std::path::PathBuf>, sender: Sender<String>, buffer
                     tab_pos.push(last);
                 }
 
-                for f in &fields {
+                for f in fields.iter() {
                     chunks.push(&s[tab_pos[*f]..tab_pos[*f + 1] - 1]);
                 }
 
@@ -83,6 +83,7 @@ fn process_chunk(chunk : Vec<std::path::PathBuf>, sender: Sender<String>, buffer
 }
 fn main() {
     let args = Args::parse();
+    let fields = std::sync::Arc::new(args.fields);
     let buffer_size = parse_size(args.buffer_size).expect("Wrong format for buffer size") as usize;
 
     let files = args
@@ -100,7 +101,7 @@ fn main() {
     for chunk in files.chunks(num_cpus::get()) {
         let (sender, receiver) = mpsc::channel();
         receivers.push(receiver);
-        let fields = args.fields.to_owned();
+        let fields = fields.clone();
         let chunk = chunk.to_owned();
         thread_handles.push(thread::spawn(move || {
             process_chunk(chunk, sender, buffer_size, fields, args.skip);
