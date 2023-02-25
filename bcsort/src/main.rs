@@ -58,9 +58,9 @@ fn process_chunk(chunk : Vec<std::path::PathBuf>, sender: Sender<String>, buffer
                 }
 
                 // Send/sort as String
-                thread_sender.send(String::from_utf8(chunks.join(&b'\t')).unwrap()).unwrap();
+                // thread_sender.send(String::from_utf8(chunks.join(&b'\t')).unwrap()).unwrap();
                 // Send/sort as Vec<u8>
-                // thread_sender.send(chunks.join(&b'\t')).unwrap();
+                thread_sender.send(std::boxed::Box::new(chunks.join(&b'\t'))).unwrap();
             }
         }
     });
@@ -73,7 +73,7 @@ fn process_chunk(chunk : Vec<std::path::PathBuf>, sender: Sender<String>, buffer
             .build()
             .unwrap();
 
-    let sorted = sorter.sort(thread_receiver.into_iter().map(|x| Ok(x.as_bytes().to_owned()))).unwrap();
+    let sorted = sorter.sort(thread_receiver.into_iter().map(|x| Ok(x))).unwrap();
 
 /*    let ln = &[b'\n'];
     for item in sorted.map(Result::unwrap) {
