@@ -61,5 +61,5 @@ fn main() {
             .build()
             .unwrap();
 
-    sorter.sort(readers.get_mut(0).unwrap()).unwrap().count();
+    sorter.sort(readers.into_iter().flatten()).unwrap().count();
 }
