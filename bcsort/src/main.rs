@@ -57,7 +57,10 @@ fn process_chunk(chunk : Vec<std::path::PathBuf>, sender: Sender<String>, buffer
                     chunks.push(&s[tab_pos[*f]..tab_pos[*f + 1] - 1]);
                 }
 
-                thread_sender.send(String::from_utf8(chunks.join(&b'\t')).unwrap()).unwrap();
+                // Send/sort as String
+                //thread_sender.send(String::from_utf8(chunks.join(&b'\t')).unwrap()).unwrap();
+                // Send/sort as Vec<u8>
+                thread_sender.send(chunks.join(&b'\t')).unwrap();
             }
         }
     });
