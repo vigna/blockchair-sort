@@ -13,6 +13,7 @@ csv = "1.2"
 parse-size = "1"
 num_cpus = "1"
 bytelines = "2"
+voracious_radix_sort = { version = "1.1.1", features = ["rayon", "voracious_multithread"] }
 
 [profile.release]
 debug = 1
