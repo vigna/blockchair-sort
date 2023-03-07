@@ -22,7 +22,7 @@ impl Xoshiro256Plus {
 
 fn main() {
     let mut r = Xoshiro256Plus{s: [1, 2, 3, 4]};
-    let mut v = vec![0u64; 2000000000];
+    let mut v = vec![0u64; 10000000000];
 
     for _ in 0..10 {
         for x in &mut v {
@@ -30,6 +30,18 @@ fn main() {
         }
         let start = Instant::now();
         v.voracious_mt_sort(10);
+        println!("{}", Instant::now().duration_since(start).as_nanos() as f64 / 1E9);
+        for x in &mut v {
+            *x = r.next(); 
+        }
+        let start = Instant::now();
+        v.voracious_mt_sort(20);
+        println!("{}", Instant::now().duration_since(start).as_nanos() as f64 / 1E9);
+        for x in &mut v {
+            *x = r.next(); 
+        }
+        let start = Instant::now();
+        v.voracious_mt_sort(40);
         println!("{}", Instant::now().duration_since(start).as_nanos() as f64 / 1E9);
     }
 
